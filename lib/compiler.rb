@@ -65,6 +65,9 @@ class Compiler
     @utils = Utils.new(options)
 
     init_options
+
+    @install_dir = File.join @tmpdir, 'install'
+
     init_entrance if entrance
     init_tmpdir
 
@@ -90,8 +93,11 @@ class Compiler
       @options[:output] ||= 'a.out'
     end
     @options[:output] = File.expand_path(@options[:output])
+
     @options[:tmpdir] ||= File.expand_path("rubyc", Dir.tmpdir)
     @options[:tmpdir] = File.expand_path(@options[:tmpdir])
+    @tmpdir = @options[:tmpdir]
+
     @gem_package = GemPackage.new(@entrance, @options, @utils) if @options[:gem]
     if @options[:auto_update_url] || @options[:auto_update_base]
       unless @options[:auto_update_url].length > 0 && @options[:auto_update_base].length > 0
@@ -130,7 +136,29 @@ class Compiler
       raise Error, "Tempdir #{@options[:tmpdir]} cannot reside inside #{@root}."
     end
   end
-  
+
+  def stuff_libarchive
+    source = File.join(PRJ_ROOT, "vendor", "libarchive")
+    libarchive_a = File.join(@install_dir, "lib", "libarchive.a")
+
+    unless File.exist?(libarchive_a)
+      Dir.mktmpdir "libarchive-source" do |tmp_source|
+        @utils.cp_r(source, tmp_source, preserve: true)
+
+        Dir.mktmpdir "libarchive-build" do |build|
+          Dir.chdir build do
+            @utils.run(@compile_env, "#{tmp_source}/libarchive/configure", "--prefix=#{@install_dir}")
+            @utils.run(@compile_env, "make", @options[:make_args], "install")
+          end
+        end
+      end
+
+      Dir["#{@install_dir}/*.{dylib,so,dll}"].each do |thisdl|
+        @utils.rm_f(thisdl)
+      end
+    end
+  end
+
   def stuff_zlib
     target = File.join(@options[:tmpdir], 'zlib')
     unless Dir.exist?(target)
@@ -299,6 +327,7 @@ class Compiler
     @utils.rm_rf(@options[:tmpdir]) if @options[:clean_tmpdir]
     @utils.mkdir_p(@options[:tmpdir])
 
+    stuff_libarchive
     stuff_zlib
     stuff_openssl
     stuff_gdbm
@@ -457,7 +486,8 @@ class Compiler
                                     --without-gmp \
                                     --disable-dtrace \
                                     --enable-debug-env \
-                                    --disable-install-rdoc")
+                                    --disable-install-rdoc \
+                                    --with-opt-dir=#{@utils.escape @install_dir}")
             @utils.run(@compile_env, "make #{@options[:make_args]} -j1")
             @utils.run(@compile_env, "make install")
           end
@@ -791,6 +821,8 @@ class Compiler
       @ldflags += " -libpath:#{@utils.escape File.join(@options[:tmpdir], 'zlib').gsub('/', '\\')} #{@utils.escape File.join(@options[:tmpdir], 'zlib', 'zlib.lib')} "
       @cflags += " -I#{@utils.escape File.join(@options[:tmpdir], 'zlib')} "
     else
+      @ldflags += " -L#{@utils.escape File.join(@install_dir, 'lib')} "
+      @cflags += " -I#{@utils.escape File.join(@install_dir, 'include')} "
       @ldflags += " -L#{@utils.escape File.join(@options[:tmpdir], 'zlib')} #{@utils.escape File.join(@options[:tmpdir], 'zlib', 'libz.a')} "
       @cflags += " -I#{@utils.escape File.join(@options[:tmpdir], 'zlib')} "
       @ldflags += " -L#{@utils.escape File.join(@options[:tmpdir], 'openssl')} "
