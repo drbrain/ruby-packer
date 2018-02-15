@@ -145,6 +145,10 @@ class Compiler
       Dir.mktmpdir "libarchive-source" do |tmp_source|
         @utils.cp_r(source, tmp_source, preserve: true)
 
+        Dir.chdir tmp_source do
+          @utils.run("autoreconf", "-i", "-f")
+        end
+
         Dir.mktmpdir "libarchive-build" do |build|
           Dir.chdir build do
             @utils.run(@compile_env, "#{tmp_source}/libarchive/configure", "--prefix=#{@install_dir}")
