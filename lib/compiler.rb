@@ -143,7 +143,8 @@ class Compiler
 
     unless File.exist?(libarchive_a)
       Dir.mktmpdir "libarchive-source" do |tmp_source|
-        @utils.cp_r(source, tmp_source, preserve: true)
+        source_files = File.join(source, ".")
+        @utils.cp_r(source_files, tmp_source, preserve: true)
 
         Dir.chdir tmp_source do
           @utils.run("autoreconf", "-i", "-f")
@@ -151,7 +152,8 @@ class Compiler
 
         Dir.mktmpdir "libarchive-build" do |build|
           Dir.chdir build do
-            @utils.run(@compile_env, "#{tmp_source}/libarchive/configure", "--prefix=#{@install_dir}")
+            configure = File.join(tmp_source, "configure")
+            @utils.run(@compile_env, configure, "--prefix=#{@install_dir}")
             @utils.run(@compile_env, "make", @options[:make_args], "install")
           end
         end
