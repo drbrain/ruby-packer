@@ -1,5 +1,3 @@
-sudo: false
-
 language: ruby
 
 rvm: 2.4.1
@@ -16,6 +14,7 @@ addons:
 
 install:
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew install squashfs; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then export CXX="clang++" CC="clang"; fi
 
 before_script:
   - mksquashfs -version
